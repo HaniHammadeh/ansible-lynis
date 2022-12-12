@@ -1,0 +1,58 @@
+---
+- hosts: localhost
+  become: true
+  tasks:
+  - name: Update package list
+    apt:
+      update_cache: yes
+
+  - name: Install security updates
+    apt:
+      name: "*"
+      state: latest
+
+  - name: Install security packages
+    apt:
+      name: "{{ item }}"
+      state: present
+    loop:
+      - fail2ban
+      - ufw
+      - clamav
+      - lynis
+
+  - name: Configure firewall
+    ufw:
+      policy: allow
+      port: "{{ item }}"
+    loop:
+      - "22"
+      - "80"
+      - "443"
+
+  - name: Enable firewall
+    ignore_errors: yes
+    ufw:
+      state: "enabled"
+
+  - name: Scan system for vulnerabilities
+    command: lynis audit system
+    register: lynis_scan
+
+  - name: Parse lynis report
+    set_fact:
+      security_issues: "{{ security_issues|default([]) + [item] }}"
+    with_items: "{{ lynis_scan.stdout_lines }}"
+    when: '"Warning"   in  item or "Suggestion" in item'
+  - name : show the security issues
+    debug:
+      msg: "{{security_issues|flatten(1)}}"
+
+  - name: Notify if security issues were found
+    local_action:
+      module: slack
+      token: "{{slack_api_token}}"
+      channel: "#devops"
+      msg: "Security issues were found on host {{ inventory_hostname }}: {{ security_issues }}"
+    when: security_issues|length > 0
+
