@@ -51,7 +51,7 @@
   - name: Notify if security issues were found
     local_action:
       module: slack
-      token: "{{slack_api_token}}"
+      token: ${{secrets.SLACK_API_TOKEN}}
       channel: "#devops"
       msg: "Security issues were found on host {{ inventory_hostname }}: {{ security_issues }}"
     when: security_issues|length > 0
